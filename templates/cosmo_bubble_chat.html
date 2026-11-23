@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>COSMO TALK WEB</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="app-layout" id="app-layout">
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-title">MEMBERS</div>
+      <button type="button" class="icon-btn" id="sidebar-toggle-inner" aria-label="折疊側邊欄">✕</button>
+    </div>
+    <div id="member-list"></div>
+  </aside>
+
+  <main class="main-pane">
+    <div class="chat-header" id="chat-header"></div>
+    <nav class="timeline-rail empty" id="timeline-rail" aria-label="時間軸快速定位"></nav>
+    <div id="chat"></div>
+
+    <div class="chat-composer-wrapper" id="chat-composer-wrapper">
+      <div class="sticker-picker-panel" id="sticker-picker-panel" aria-label="貼圖選擇器">
+        <div class="sticker-picker-header">
+          <span id="sticker-picker-status">貼圖列表</span>
+          <button type="button" class="sticker-clear-btn" id="sticker-clear-btn">清除已選貼圖</button>
+        </div>
+        <div class="sticker-grid" id="sticker-grid"></div>
+      </div>
+
+      <div class="selected-sticker-bar" id="selected-sticker-bar" style="display: none;">
+        <img id="selected-sticker-img" alt="selected sticker">
+        <span id="selected-sticker-label">已選取貼圖（按 ↑ 發送）</span>
+        <button type="button" class="sticker-clear-btn" id="selected-sticker-remove">✕</button>
+      </div>
+
+      <div class="composer-bar">
+        <div class="composer-pill">
+          <input
+            type="text"
+            id="chat-input"
+            class="composer-input"
+            placeholder="可發送 0 次訊息"
+            autocomplete="off"
+          >
+          <button
+            type="button"
+            id="sticker-toggle-btn"
+            class="sticker-toggle-btn"
+            aria-label="選擇貼圖"
+            title="選擇貼圖"
+          >☺</button>
+        </div>
+        <button
+          type="button"
+          id="send-msg-btn"
+          class="send-msg-btn"
+          aria-label="傳送"
+          title="傳送"
+        >↑</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script id="members-data" type="application/json">{{ members_data | tojson }}</script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

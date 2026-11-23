@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>COSMO TALK WEB · Login</title>
+<style>
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: #0f0f0f;
+    color: #ffffff;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 360px;
+    background-color: #161618;
+    border: 1px solid #262629;
+    border-radius: 12px;
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .title {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .desc {
+    font-size: 12px;
+    color: #8e8e93;
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  label {
+    font-size: 12px;
+    color: #c7c7cc;
+  }
+
+  input {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #34343c;
+    background-color: #0f0f0f;
+    color: #ffffff;
+    font-size: 14px;
+    outline: none;
+  }
+
+  input:focus {
+    border-color: #b28aff;
+  }
+
+  button {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #3a3a42;
+    background-color: #2c2c2e;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  button:hover:not(:disabled) {
+    background-color: #3a3a3e;
+  }
+
+  button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    background-color: transparent;
+    color: #c7c7cc;
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    background-color: #222226;
+    color: #ffffff;
+  }
+
+  .email-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .email-section.hidden {
+    display: none;
+  }
+
+  .otp-section {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .otp-section.active {
+    display: flex;
+  }
+
+  .status {
+    font-size: 12px;
+    min-height: 18px;
+    color: #8e8e93;
+    word-break: break-word;
+  }
+
+  .status.error {
+    color: #ff6b6b;
+  }
+
+  .status.ok {
+    color: #7ee787;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1 class="title">COSMO 登入</h1>
+  <p class="desc" id="desc-text">請輸入信箱取得 OTP 驗證碼</p>
+
+  <div class="email-section" id="email-section">
+    <div class="field">
+      <label for="email-input">Email</label>
+      <input id="email-input" type="email" placeholder="name@example.com" autocomplete="email" required>
+    </div>
+    <button id="send-btn" type="button">發送 OTP</button>
+  </div>
+
+  <div class="otp-section" id="otp-section">
+    <div class="field">
+      <label for="otp-input">OTP 驗證碼</label>
+      <input id="otp-input" type="text" inputmode="numeric" placeholder="輸入收到的驗證碼" autocomplete="one-time-code">
+    </div>
+    <button id="verify-btn" type="button">保存</button>
+    <button id="back-btn" class="btn-secondary" type="button">上一頁</button>
+  </div>
+
+  <div class="status" id="status-msg"></div>
+</div>
+
+<script>
+const descText = document.getElementById('desc-text');
+const emailSection = document.getElementById('email-section');
+const emailInput = document.getElementById('email-input');
+const sendBtn = document.getElementById('send-btn');
+const otpSection = document.getElementById('otp-section');
+const otpInput = document.getElementById('otp-input');
+const verifyBtn = document.getElementById('verify-btn');
+const backBtn = document.getElementById('back-btn');
+const statusEl = document.getElementById('status-msg');
+
+function setStatus(text, type = '') {
+  statusEl.textContent = text;
+  statusEl.className = 'status' + (type ? ` ${type}` : '');
+}
+
+function enterOtpStep(email) {
+  emailSection.classList.add('hidden');
+  otpSection.classList.add('active');
+  descText.textContent = `已發送驗證碼至 ${email}，請輸入 OTP 後按保存`;
+  otpInput.focus();
+}
+
+function backToEmailStep() {
+  otpSection.classList.remove('active');
+  emailSection.classList.remove('hidden');
+  otpInput.value = '';
+  descText.textContent = '找不到 auth.json，請輸入信箱取得 OTP 驗證碼';
+  setStatus('');
+  emailInput.focus();
+}
+
+sendBtn.addEventListener('click', async () => {
+  const email = emailInput.value.trim();
+  if (!email) {
+    setStatus('請先輸入 Email', 'error');
+    return;
+  }
+  sendBtn.disabled = true;
+  setStatus('正在發送 OTP...');
+  try {
+    const resp = await fetch('/api/login/send-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      throw new Error(data.error || '發送失敗');
+    }
+    enterOtpStep(email);
+    setStatus(`OTP 已寄送至 ${email}`, 'ok');
+  } catch (err) {
+    setStatus(err.message || String(err), 'error');
+  } finally {
+    sendBtn.disabled = false;
+  }
+});
+
+backBtn.addEventListener('click', () => {
+  backToEmailStep();
+});
+
+verifyBtn.addEventListener('click', async () => {
+  const email = emailInput.value.trim();
+  const code = otpInput.value.trim();
+  if (!email || !code) {
+    setStatus('請輸入 OTP 驗證碼', 'error');
+    return;
+  }
+  verifyBtn.disabled = true;
+  backBtn.disabled = true;
+  setStatus('正在驗證並儲存 auth.json...');
+  try {
+    const resp = await fetch('/api/login/verify-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      throw new Error(data.error || '驗證失敗');
+    }
+    setStatus('保存成功，正在跳轉...', 'ok');
+    window.location.href = '/';
+  } catch (err) {
+    setStatus(err.message || String(err), 'error');
+    verifyBtn.disabled = false;
+    backBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
