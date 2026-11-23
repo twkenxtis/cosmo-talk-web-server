@@ -1,5 +1,5 @@
 <p align="center">
-    <img width="1280" height="720" src="[https://github.com/twkenxtis/Berriz-Media-pass/blob/main/berriz-extension-chrome/assets/icons/berry512.png](https://i.ibb.co/Mk0PvwhM/Ji-Woo-COSMO-TALK-WEB.png)" />
+    <img width="1280" height="720" src="https://i.ibb.co/Mk0PvwhM/Ji-Woo-COSMO-TALK-WEB.png" />
     <br/>
     <sup><strong>A FAST API self-host cosmo Talk web</strong></sup>
 </p>
