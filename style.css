@@ -10,6 +10,8 @@
   --border-color: #262629;
   --bubble-bg: #2c2c2e;
   --bubble-reply-bg: #26123c;
+  --user-reply-bg: rgb(54, 24, 146);
+  --avatar-ring-color: rgb(35, 42, 48);
   --text-color: #ffffff;
   --text-muted: #8e8e93;
   --purple-text: #b28aff;
@@ -209,10 +211,33 @@ body {
 }
 
 .day {
-  text-align: center;
-  margin: 16px 0;
-  color: var(--text-muted);
+  position: relative;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 26px 0 12px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background-color: #2C2C2E;
+  color: #E5E5EA;
   font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+
+.day::before {
+  content: "";
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(72vw, 420px);
+  height: 1px;
+  background-color: rgba(255, 255, 255, 0.14);
+  pointer-events: none;
 }
 
 .msg-wrapper {
@@ -223,6 +248,22 @@ body {
   scroll-margin-top: 72px;
 }
 
+.msg-wrapper.grouped-next {
+  margin-bottom: 2px;
+}
+
+.msg-wrapper.grouped-next .avatar {
+  visibility: hidden;
+  height: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  pointer-events: none;
+}
+
+.msg-wrapper.grouped-next .sender-name {
+  display: none;
+}
+
 .avatar {
   width: 36px;
   height: 36px;
@@ -230,6 +271,7 @@ body {
   background-color: #333;
   background-size: cover;
   background-position: center;
+  border: 2.5px solid var(--avatar-ring-color);
   flex-shrink: 0;
   margin-top: 2px;
 }
@@ -253,16 +295,23 @@ body {
   gap: 6px;
 }
 
+/* 左側訊息泡泡：右上、右下、左下圓角，左上微收角 */
 .bubble {
   background-color: var(--bubble-bg);
   color: var(--text-color);
   padding: 10px 14px;
-  border-radius: 18px;
-  border-top-left-radius: 4px;
+  border-radius: 4px 18px 18px 18px;
   font-size: 15px;
   line-height: 1.4;
   word-break: break-word;
   white-space: pre-wrap;
+}
+
+/* 右側訊息／userReply 泡泡：左上、左下、右下圓角，右上微收角 */
+.msg-wrapper[style*="row-reverse"] .bubble,
+.bubble.user-reply {
+  background-color: var(--user-reply-bg);
+  border-radius: 18px 4px 18px 18px;
 }
 
 .bubble.reply-bubble {
@@ -297,26 +346,27 @@ body {
   padding-bottom: 2px;
 }
 
-.bubble.sticker {
-  background: transparent;
-  padding: 2px;
-  border: none;
+/* 非文字訊息：移除泡泡底框，直接呈現於聊天室並適度放大 */
+.bubble.media-bubble,
+.bubble.sticker,
+.bubble.media {
+  background-color: transparent !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none;
+  overflow: visible;
 }
 
+.bubble.media-bubble .sticker-img,
 .sticker-img {
   display: block;
-  max-width: 148px;
-  max-height: 148px;
+  max-width: 176px;
+  max-height: 176px;
   width: auto;
   height: auto;
   object-fit: contain;
-}
-
-.bubble.media {
-  background: transparent;
-  padding: 0;
-  border: none;
-  overflow: hidden;
 }
 
 .media-list {
@@ -335,14 +385,16 @@ body {
 
 .media-img {
   display: block;
-  max-width: 280px;
-  max-height: 360px;
+  max-width: 330px;
+  max-height: 420px;
   width: 100%;
   height: auto;
   object-fit: cover;
+  border-radius: 14px;
 }
 
-.bubble.media a.fallback-link {
+.bubble.media a.fallback-link,
+.bubble.media-bubble a.fallback-link {
   display: inline-block;
   padding: 10px 14px;
   background-color: var(--bubble-bg);
@@ -361,11 +413,13 @@ body {
 
 .media-video {
   display: block;
-  max-width: 280px;
-  max-height: 360px;
-  width: 100%;
+  max-width: min(400px, 100%);
+  max-height: 420px;
+  width: auto;
   height: auto;
+  object-fit: contain;
   background-color: #000;
+  border-radius: 10px;
 }
 
 .media-box.audio-box {
@@ -390,19 +444,25 @@ body {
 
 .timeline-rail {
   position: fixed;
-  right: 14px;
+  right: 12px;
   top: 50%;
   transform: translateY(-50%);
-  max-height: 70vh;
+  max-height: 85vh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px;
-  background-color: rgba(22, 22, 24, 0.92);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
+  gap: 7px;
+  padding: 0;
+  background-color: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
   z-index: 20;
+  scrollbar-width: none;
+}
+
+.timeline-rail::-webkit-scrollbar {
+  display: none;
 }
 
 .timeline-rail.empty {
@@ -410,15 +470,17 @@ body {
 }
 
 .timeline-btn {
+  min-height: 28px;
   border: 1px solid #34343c;
   background-color: #1f1f24;
   color: #dcdce4;
-  padding: 4px 8px;
+  padding: 5px 10px;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   white-space: nowrap;
   text-align: center;
+  border-radius: 6px;
 }
 
 .timeline-btn:hover {
@@ -456,11 +518,13 @@ body {
 .sticker-picker-panel {
   display: none;
   flex-direction: column;
-  background-color: var(--sidebar-bg);
+  background-color: rgba(22, 22, 24, 0.96);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 10px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.6);
+  border-radius: 18px;
+  padding: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65);
 }
 
 .sticker-picker-panel.open {
@@ -473,16 +537,16 @@ body {
   justify-content: space-between;
   font-size: 12px;
   color: var(--text-muted);
-  margin-bottom: 8px;
-  padding: 0 2px;
+  margin-bottom: 10px;
+  padding: 0 4px;
 }
 
 .sticker-clear-btn {
   border: 1px solid #3a3a42;
   background-color: var(--accent-btn);
   color: var(--text-color);
-  border-radius: 8px;
-  padding: 3px 8px;
+  border-radius: 999px;
+  padding: 4px 10px;
   font-size: 11px;
   cursor: pointer;
 }
@@ -495,28 +559,38 @@ body {
 .sticker-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-auto-rows: 96px;
   gap: 8px;
-  max-height: 310px;
+  max-height: 360px;
   overflow-y: auto;
-  padding-right: 2px;
+  overflow-x: hidden;
+  align-content: start;
+  padding: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: #34343c transparent;
 }
 
 .sticker-grid-item {
-  aspect-ratio: 1 / 1;
-  border: 1px solid #2e2e36;
-  background-color: #1f1f24;
-  border-radius: 10px;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid transparent;
+  background-color: rgba(255, 255, 255, 0.03);
+  border-radius: 14px;
   padding: 4px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
 }
 
 .sticker-grid-item:hover {
   background-color: var(--sidebar-hover);
-  border-color: var(--purple-text);
+  border-color: rgba(178, 138, 255, 0.45);
+  transform: scale(1.03);
 }
 
 .sticker-grid-item.selected {
@@ -525,10 +599,11 @@ body {
 }
 
 .sticker-grid-item img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
-  display: block;
+  pointer-events: none;
 }
 
 .selected-sticker-bar {
@@ -638,16 +713,6 @@ body {
   cursor: not-allowed;
 }
 
-.media-video {
-  display: block;
-  max-width: min(360px, 100%);
-  max-height: 360px;
-  width: auto;
-  height: auto;
-  object-fit: contain;
-  border-radius: 6px;
-}
-
 @media (max-width: 900px) and (min-width: 769px) {
   .main-pane {
     padding-right: 76px;
@@ -697,6 +762,18 @@ body {
     padding: 0 12px 96px;
   }
 
+  .msg-content {
+    max-width: 86%;
+  }
+
+  .bubble.media-bubble .media-img,
+  .bubble.media-bubble .media-video,
+  .media-img,
+  .media-video {
+    max-width: 100%;
+  }
+
+  #timeline-rail,
   .timeline-rail {
     position: fixed;
     top: var(--topbar-h);
@@ -714,21 +791,29 @@ body {
     gap: 6px;
     overflow-x: auto;
     overflow-y: hidden;
-    padding: 4px 10px;
+    padding: 0 10px;
     margin-top: 0;
+    border: none;
     border-radius: 0;
-    border-left: none;
-    border-right: none;
-    background-color: rgba(22, 22, 24, 0.96);
+    box-shadow: none;
+    background-color: transparent;
     white-space: nowrap;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
     z-index: 20;
   }
 
+  #timeline-rail::-webkit-scrollbar,
+  .timeline-rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  #timeline-rail.empty,
   .timeline-rail.empty {
     display: none;
   }
 
+  #timeline-rail .timeline-btn,
   .timeline-btn {
     flex: 0 0 auto;
     flex-shrink: 0;

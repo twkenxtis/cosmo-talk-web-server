@@ -31,14 +31,17 @@ let isSidebarCollapsed = isMobileViewport();
 let activeMemberId = MEMBERS_DATA.length > 0 ? MEMBERS_DATA[0].artistMemberId : null;
 let currentRenderedItems = [];
 let currentSegmentStarts = [];
+let currentRenderedKeys = new Set();
 let lastDayState = null;
 let lastTimestampMsState = null;
+let prevGroupInfoState = null;
 
 let remainingCount = null;
 let textMaxLength = 200;
 let stickersCache = null;
 let selectedSticker = null;
 let isSending = false;
+let isHandlingEmptyChannelsLogout = false;
 
 function getLatestMessageIdForMember(member) {
   if (!member) return '';
@@ -86,6 +89,7 @@ async function fetchRemainingCount(memberId) {
 }
 
 function ensureRemainingCountIfNeeded(memberId) {
+  if (!memberId) return;
   if (remainingCount === null) {
     fetchRemainingCount(memberId);
   } else {
@@ -189,6 +193,20 @@ function renderStickerGrid() {
     };
 
     stickerGridEl.appendChild(btn);
+  }
+
+  requestAnimationFrame(() => {
+    syncStickerGridSquareRows();
+  });
+}
+
+function syncStickerGridSquareRows() {
+  if (!stickerGridEl) return;
+  const firstItem = stickerGridEl.querySelector('.sticker-grid-item');
+  if (!firstItem) return;
+  const colWidth = firstItem.getBoundingClientRect().width;
+  if (colWidth > 0) {
+    stickerGridEl.style.gridAutoRows = `${Math.round(colWidth)}px`;
   }
 }
 
@@ -350,6 +368,9 @@ window.addEventListener('resize', () => {
     isSidebarCollapsed = nowMobile;
     applySidebarState();
   }
+  if (stickerPickerPanelEl && stickerPickerPanelEl.classList.contains('open')) {
+    requestAnimationFrame(syncStickerGridSquareRows);
+  }
 });
 
 function nfc(val) {
@@ -417,8 +438,20 @@ function fmtExportTimestamp(iso) {
   return `${yyyy}/${mm}/${dd} ${hh}:${min}:${ss}`;
 }
 
-function isOther(msg) {
-  return msg.senderType === 'artistMember';
+function getMinuteGroupKey(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function isUserReplyMsg(msg, rec) {
+  const sourceType = msg?.sourceType || rec?.sourceType || '';
+  return sourceType === 'userReply';
+}
+
+function isOther(msg, rec) {
+  return msg?.senderType === 'artistMember' && !isUserReplyMsg(msg, rec);
 }
 
 function formatMemberLabel(member) {
@@ -429,7 +462,7 @@ function formatMemberLabel(member) {
 }
 
 function renderSticker(st, bubble) {
-  bubble.classList.add('sticker');
+  bubble.classList.add('sticker', 'media-bubble');
   const stickerUrl = typeof st === 'string' ? st : st?.imageUrl;
   if (!stickerUrl) {
     bubble.textContent = nfc(typeof st === 'object' ? JSON.stringify(st) : String(st));
@@ -473,7 +506,7 @@ function pickMediaUrl(item) {
 }
 
 function renderMedia(md, bubble) {
-  bubble.classList.add('media');
+  bubble.classList.add('media', 'media-bubble');
   const items = Array.isArray(md) ? md : [md];
   const list = document.createElement('div');
   list.className = 'media-list';
@@ -552,6 +585,25 @@ function renderMedia(md, bubble) {
 
   if (list.childNodes.length > 0) {
     bubble.appendChild(list);
+  }
+}
+
+async function forceLogoutNoChannels() {
+  if (isHandlingEmptyChannelsLogout) return;
+  isHandlingEmptyChannelsLogout = true;
+  try {
+    const resp = await fetch('/api/logout', {
+      method: 'POST',
+      cache: 'no-store',
+    }).catch(() => null);
+    let redirectUrl = '/login';
+    if (resp && resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      if (data?.loginUrl) redirectUrl = data.loginUrl;
+    }
+    window.location.replace(redirectUrl);
+  } catch (_) {
+    window.location.replace('/login');
   }
 }
 
@@ -666,12 +718,10 @@ function renderChatForMember(member) {
   currentRenderedKeys = new Set();
   lastDayState = null;
   lastTimestampMsState = null;
+  prevGroupInfoState = null;
 
-  if (!member) {
-    const empty = document.createElement('div');
-    empty.className = 'empty-state';
-    empty.textContent = nfc('沒有可用的頻道資料');
-    chatEl.appendChild(empty);
+  if (!Array.isArray(MEMBERS_DATA) || MEMBERS_DATA.length === 0 || !member) {
+    forceLogoutNoChannels();
     return;
   }
 
@@ -737,11 +787,23 @@ function renderChatForMember(member) {
       d.textContent = nfc(day);
       chatEl.appendChild(d);
       lastDayState = day;
+      prevGroupInfoState = null;
     }
 
-    const other = isOther(msg);
+    const sourceType = msg.sourceType || rec?.sourceType || '';
+    const isUserReply = isUserReplyMsg(msg, rec);
+    const minuteKey = getMinuteGroupKey(createdAt);
+    const senderKey = `${msg.senderType || ''}|${sourceType}`;
+    const isGroupedWithPrev =
+      prevGroupInfoState !== null &&
+      prevGroupInfoState.day === day &&
+      minuteKey !== '' &&
+      prevGroupInfoState.minuteKey === minuteKey &&
+      prevGroupInfoState.senderKey === senderKey;
+
+    const other = isOther(msg, rec);
     const wrapper = document.createElement('div');
-    wrapper.className = 'msg-wrapper';
+    wrapper.className = 'msg-wrapper' + (isGroupedWithPrev ? ' grouped-next' : '');
     const msgAnchorId = `msg-${member.artistMemberId}-${renderedCount}`;
     wrapper.id = msgAnchorId;
     if (!other) {
@@ -776,8 +838,17 @@ function renderChatForMember(member) {
       bubbleRow.style.flexDirection = 'row-reverse';
     }
 
+    const isMediaOnly =
+      !isReply &&
+      !hasContent &&
+      (hasSticker || hasMedia || (msg.messageType && msg.messageType !== 'text'));
+
     const bubble = document.createElement('div');
-    bubble.className = 'bubble ' + (isReply ? 'reply-bubble' : '');
+    bubble.className =
+      'bubble' +
+      (isReply ? ' reply-bubble' : '') +
+      (isUserReply ? ' user-reply' : '') +
+      (isMediaOnly ? ' media-bubble' : '');
 
     if (isReply) {
       const rc = msg.replyContent;
@@ -845,6 +916,12 @@ function renderChatForMember(member) {
       }
       lastTimestampMsState = parsedMs;
     }
+
+    prevGroupInfoState = {
+      day,
+      minuteKey,
+      senderKey,
+    };
   });
 
   if (currentSegmentStarts.length > 0) {
@@ -965,11 +1042,23 @@ function appendSingleRecord(member, rec, key) {
     d.textContent = nfc(day);
     chatEl.appendChild(d);
     lastDayState = day;
+    prevGroupInfoState = null;
   }
 
-  const other = isOther(msg);
+  const sourceType = msg.sourceType || rec?.sourceType || '';
+  const isUserReply = isUserReplyMsg(msg, rec);
+  const minuteKey = getMinuteGroupKey(createdAt);
+  const senderKey = `${msg.senderType || ''}|${sourceType}`;
+  const isGroupedWithPrev =
+    prevGroupInfoState !== null &&
+    prevGroupInfoState.day === day &&
+    minuteKey !== '' &&
+    prevGroupInfoState.minuteKey === minuteKey &&
+    prevGroupInfoState.senderKey === senderKey;
+
+  const other = isOther(msg, rec);
   const wrapper = document.createElement('div');
-  wrapper.className = 'msg-wrapper';
+  wrapper.className = 'msg-wrapper' + (isGroupedWithPrev ? ' grouped-next' : '');
   const msgAnchorId = `msg-${member.artistMemberId}-${seqNum}`;
   wrapper.id = msgAnchorId;
   if (!other) {
@@ -1004,8 +1093,17 @@ function appendSingleRecord(member, rec, key) {
     bubbleRow.style.flexDirection = 'row-reverse';
   }
 
+  const isMediaOnly =
+    !isReply &&
+    !hasContent &&
+    (hasSticker || hasMedia || (msg.messageType && msg.messageType !== 'text'));
+
   const bubble = document.createElement('div');
-  bubble.className = 'bubble ' + (isReply ? 'reply-bubble' : '');
+  bubble.className =
+    'bubble' +
+    (isReply ? ' reply-bubble' : '') +
+    (isUserReply ? ' user-reply' : '') +
+    (isMediaOnly ? ' media-bubble' : '');
 
   if (isReply) {
     const rc = msg.replyContent;
@@ -1070,6 +1168,12 @@ function appendSingleRecord(member, rec, key) {
     }
     lastTimestampMsState = parsedMs;
   }
+
+  prevGroupInfoState = {
+    day,
+    minuteKey,
+    senderKey,
+  };
 }
 
 async function silentPollOnce() {
@@ -1095,6 +1199,11 @@ async function silentPollOnce() {
     if (!resp.ok) return;
     const payload = await resp.json();
     if (!payload.ok || !Array.isArray(payload.members)) return;
+
+    if (payload.members.length === 0) {
+      forceLogoutNoChannels();
+      return;
+    }
 
     for (const updatedMember of payload.members) {
       const idx = MEMBERS_DATA.findIndex(
